@@ -37,6 +37,11 @@ const ReportsRepo = {
     })
     return response.data
   },
+
+  sendViaEmail: async (payload) => {
+    const response = await Connector.post(Apis.sendReportEmail, payload)
+    return response.data
+  },
 }
 
 export default ReportsRepo

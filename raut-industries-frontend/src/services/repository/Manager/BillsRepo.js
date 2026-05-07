@@ -45,6 +45,11 @@ const BillsRepo = {
     const response = await Connector.put(Apis.cancelBill(id))
     return response.data
   },
+
+  sendViaEmail: async (payload) => {
+    const response = await Connector.post(Apis.sendBillEmail, payload)
+    return response.data
+  },
 }
 
 export default BillsRepo

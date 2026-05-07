@@ -36,6 +36,7 @@ const Apis = {
   billPreview:     '/bills/preview',
   confirmBill:     (id) => `/bills/${id}/confirm`,
   cancelBill:      (id) => `/bills/${id}/cancel`,
+  sendBillEmail:   '/bills/send-email',
 
   // ── Employees ───────────────────────────────────────────────
   employees:       '/employees',
@@ -55,6 +56,7 @@ const Apis = {
   reportGst:        '/reports/gst',
   reportSales:      '/reports/sales',
   reportAttendance: '/reports/attendance',
+  sendReportEmail:  '/reports/send-email',
 }
 
 export default Apis

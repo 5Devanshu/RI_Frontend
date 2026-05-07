@@ -9,6 +9,7 @@ import {
   formatDate, monthName,
   billStatusBadge, extractError,
 } from '../../../../utils/helpers'
+import SendReportModal from './_components/SendReportModal'
 
 export default function SalesReport() {
   const now = new Date()
@@ -19,6 +20,7 @@ export default function SalesReport() {
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState('')
   const [tab,     setTab]     = useState('overview') // overview | products | clients | bills
+  const [showSendModal, setShowSendModal] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -50,17 +52,26 @@ export default function SalesReport() {
   ]
 
   return (
+    <>
     <ReportPage
       title="Sales Report"
       subtitle={`${monthName(month)} ${year} · ${overview.confirmed_bills || 0} confirmed bills`}
       loading={loading}
       error={error}
       controls={
-        <MonthYearPicker
-          month={month}
-          year={year}
-          onChange={(m, y) => { setMonth(m); setYear(y) }}
-        />
+        <div className="flex items-center gap-4">
+          <MonthYearPicker
+            month={month}
+            year={year}
+            onChange={(m, y) => { setMonth(m); setYear(y) }}
+          />
+          <button
+            onClick={() => setShowSendModal(true)}
+            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
+          >
+            📧 Send Report
+          </button>
+        </div>
       }
     >
       {/* KPIs */}
@@ -356,5 +367,14 @@ export default function SalesReport() {
         </ReportSection>
       )}
     </ReportPage>
+    <SendReportModal
+      isOpen={showSendModal}
+      onClose={() => setShowSendModal(false)}
+      reportType="sales"
+      month={month}
+      year={year}
+      reportName={`Sales Report - ${monthName(month)} ${year}`}
+    />
+    </>
   )
 }

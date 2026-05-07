@@ -5,6 +5,7 @@ import {
   ReportKpi, ReportSection,
 } from './_components/ReportWrapper'
 import { formatCurrency, monthName, extractError } from '../../../../utils/helpers'
+import SendReportModal from './_components/SendReportModal'
 
 export default function GstReport() {
   const now = new Date()
@@ -14,6 +15,7 @@ export default function GstReport() {
   const [data,    setData]    = useState(null)
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState('')
+  const [showSendModal, setShowSendModal] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -35,17 +37,26 @@ export default function GstReport() {
   const totals    = data?.totals    || {}
 
   return (
+    <>
     <ReportPage
       title="GST Reconciliation"
       subtitle={`${monthName(month)} ${year} · CGST + SGST breakdown`}
       loading={loading}
       error={error}
       controls={
-        <MonthYearPicker
-          month={month}
-          year={year}
-          onChange={(m, y) => { setMonth(m); setYear(y) }}
-        />
+        <div className="flex items-center gap-4">
+          <MonthYearPicker
+            month={month}
+            year={year}
+            onChange={(m, y) => { setMonth(m); setYear(y) }}
+          />
+          <button
+            onClick={() => setShowSendModal(true)}
+            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
+          >
+            📧 Send Report
+          </button>
+        </div>
       }
     >
       {/* Totals KPI */}
@@ -175,5 +186,14 @@ export default function GstReport() {
         </div>
       </ReportSection>
     </ReportPage>
+    <SendReportModal
+      isOpen={showSendModal}
+      onClose={() => setShowSendModal(false)}
+      reportType="gst"
+      month={month}
+      year={year}
+      reportName={`GST Reconciliation - ${monthName(month)} ${year}`}
+    />
+    </>
   )
 }

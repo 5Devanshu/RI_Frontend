@@ -7,6 +7,7 @@ import {
 import {
   formatCurrency, monthName, extractError,
 } from '../../../../utils/helpers'
+import SendReportModal from './_components/SendReportModal'
 
 const DEPARTMENTS = [
   '', 'Production', 'Processing', 'QC',
@@ -28,6 +29,7 @@ export default function AttendanceReport() {
   const [data,       setData]       = useState(null)
   const [loading,    setLoading]    = useState(true)
   const [error,      setError]      = useState('')
+  const [showSendModal, setShowSendModal] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -54,13 +56,14 @@ export default function AttendanceReport() {
     : employees
 
   return (
+    <>
     <ReportPage
       title="Attendance Report"
       subtitle={`${monthName(month)} ${year} · ${totals.employee_count || 0} employees`}
       loading={loading}
       error={error}
       controls={
-        <>
+        <div className="flex items-center gap-4">
           <MonthYearPicker
             month={month}
             year={year}
@@ -77,7 +80,13 @@ export default function AttendanceReport() {
               </option>
             ))}
           </select>
-        </>
+          <button
+            onClick={() => setShowSendModal(true)}
+            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
+          >
+            📧 Send Report
+          </button>
+        </div>
       }
     >
       {/* KPIs */}
@@ -287,5 +296,14 @@ export default function AttendanceReport() {
         </div>
       </ReportSection>
     </ReportPage>
+    <SendReportModal
+      isOpen={showSendModal}
+      onClose={() => setShowSendModal(false)}
+      reportType="attendance"
+      month={month}
+      year={year}
+      reportName={`Attendance Report - ${monthName(month)} ${year}`}
+    />
+    </>
   )
 }

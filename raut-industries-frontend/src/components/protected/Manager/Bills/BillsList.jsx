@@ -17,6 +17,7 @@ import {
 import { useSelector } from 'react-redux'
 import { selectUser } from '../../../../app/DashboardSlice'
 import billColumns from '../../../data/processColumnsConfig'
+import SendBillModal from './_components/SendBillModal'
 
 const MONTHS = [
   '', 'January','February','March','April','May','June',
@@ -38,6 +39,7 @@ export default function BillsList() {
   const [toast,    setToast]    = useState({ type: '', message: '' })
   const [confirm,  setConfirm]  = useState(null)
   const [acting,   setActing]   = useState(false)
+  const [sendBillModal, setSendBillModal] = useState({ isOpen: false, billId: null, billNumber: null })
 
   // Filters
   const [search,   setSearch]   = useState('')
@@ -98,6 +100,7 @@ export default function BillsList() {
   if (error) return <ErrorState message={error} />
 
   return (
+    <>
     <ListPageWrapper
       title="Bills"
       subtitle={`${bills.length} bills · ${confirmed.length} confirmed`}
@@ -322,6 +325,20 @@ export default function BillsList() {
                               </button>
                             )}
 
+                            {/* Send via Email */}
+                            <button
+                              onClick={() => setSendBillModal({
+                                isOpen: true,
+                                billId: bill.id,
+                                billNumber: bill.bill_no,
+                              })}
+                              className="text-xs text-gray-600 hover:text-blue-400
+                                         px-2 py-1 rounded hover:bg-blue-500/10
+                                         transition-colors font-medium"
+                            >
+                              📧 Send
+                            </button>
+
                           </div>
                         </td>
                       </tr>
@@ -334,6 +351,20 @@ export default function BillsList() {
         )
       }
 
-    </ListPageWrapper>
-  )
+      </ListPageWrapper>
+
+    <SendBillModal
+      isOpen={sendBillModal.isOpen}
+      onClose={() =>
+        setSendBillModal({
+          isOpen: false,
+          billId: null,
+          billNumber: null,
+        })
+      }
+      billId={sendBillModal.billId}
+      billNumber={sendBillModal.billNumber}
+    />
+  </>
+)
 }
