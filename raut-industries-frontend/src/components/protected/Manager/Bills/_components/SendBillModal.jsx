@@ -1,98 +1,209 @@
 import { useState } from 'react'
+import { Send, X, CheckCircle, Loader2 } from 'lucide-react'
+import Connector from '../../../../../services/Connector'
+import Apis from '../../../../../services/Apis'
 import BillsRepo from '../../../../../services/repository/Manager/BillsRepo'
-import { extractError } from '../../../../../utils/helpers'
 
-export default function SendBillModal({ isOpen, onClose, billId, billNumber }) {
-  const [email, setEmail] = useState('devanshudandekar5@gmail.com')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState(false)
+export default function SendBillModal({ bill, onClose, onSent }) {
+  const [sendForm,  setSendForm]  = useState({
+    email:        bill?.client?.email || '',
+    send_copy_to: '',
+    message:      '',
+  });
+  const [sending,   setSending]   = useState(false);
+  const [sendError, setSendError] = useState('');
+  const [sendDone,  setSendDone]  = useState(false);
 
-  const handleSend = async () => {
+  // ── Handler — uses BMS API send invoice ─────────────────────────────────────
+  const handleSendViaBMS = async () => {
+    if (!sendForm.email.trim()) return setSendError('Recipient email is required');
+    setSending(true); setSendError('');
+
     try {
-      if (!email.trim()) {
-        setError('Please enter a valid email address')
-        return
-      }
-
-      setLoading(true)
-      setError('')
-      setSuccess(false)
-
-      await BillsRepo.sendViaEmail({
-        billId,
-        recipientEmail: email,
-      })
-
-      setSuccess(true)
-      setTimeout(() => {
-        setEmail('devanshudandekar5@gmail.com')
-        setSuccess(false)
-        onClose()
-      }, 2000)
-    } catch (err) {
-      setError(extractError(err))
+      await Connector.post(Apis.bmsSendBill, {
+        billId:       bill.id,
+        email:        sendForm.email.trim(),
+        send_copy_to: sendForm.send_copy_to.trim(),
+        message:      sendForm.message.trim() || undefined,
+      });
+      setSendDone(true);
+      setTimeout(() => { onSent?.(); onClose(); }, 2000);
+    } catch (e) {
+      setSendError(e.response?.data?.message || e.message || 'Failed to send');
     } finally {
-      setLoading(false)
+      setSending(false);
     }
-  }
-
-  if (!isOpen) return null
+  };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
-        <h2 className="text-xl font-bold mb-4">Send Bill via Email</h2>
-
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Bill: #{billNumber}
-          </label>
-        </div>
-
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Recipient Email *
-          </label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Enter recipient email"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={loading}
-          />
-        </div>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-            {error}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div
+        className="rounded-2xl border w-full max-w-md shadow-xl"
+        style={{ backgroundColor: 'var(--surface-card)', borderColor: 'var(--surface-border)' }}
+      >
+        {/* Header */}
+        <div
+          className="flex items-center justify-between p-5 border-b"
+          style={{ borderColor: 'var(--surface-border)' }}
+        >
+          <div>
+            <h3 className="text-lg font-bold" style={{ color: 'var(--text-main)' }}>
+              Send Bill via BMS
+            </h3>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              Bill #{bill?.bill_no} — BMS will email the PDF using your M&D Reference template
+            </p>
           </div>
-        )}
-
-        {success && (
-          <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
-            Bill sent successfully!
-          </div>
-        )}
-
-        <div className="flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition disabled:opacity-50"
-            disabled={loading}
+            className="p-1.5 rounded-lg hover:opacity-70"
+            style={{ color: 'var(--text-muted)' }}
           >
-            Cancel
-          </button>
-          <button
-            onClick={handleSend}
-            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition disabled:opacity-50"
-            disabled={loading}
-          >
-            {loading ? 'Sending...' : 'Send Bill'}
+            <X size={18} />
           </button>
         </div>
+
+        {/* Body */}
+        <div className="p-5 space-y-4">
+          {sendDone ? (
+            /* ── Success state ── */
+            <div className="flex flex-col items-center py-8 gap-3 text-center">
+              <CheckCircle size={52} className="text-green-500" />
+              <p className="font-bold text-lg" style={{ color: 'var(--text-main)' }}>
+                Bill Sent!
+              </p>
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                Bill #{bill?.bill_no} was emailed to{' '}
+                <strong>{sendForm.email}</strong> via BMS
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Bill summary strip */}
+              <div
+                className="p-3 rounded-xl text-sm space-y-0.5"
+                style={{ backgroundColor: 'var(--surface-bg)' }}
+              >
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Sending</p>
+                <p className="font-bold" style={{ color: 'var(--text-main)' }}>
+                  Bill #{bill?.bill_no}
+                </p>
+                <p style={{ color: 'var(--text-muted)' }}>
+                  {bill?.client?.name || bill?.client_name || '—'}
+                </p>
+                <p className="font-semibold" style={{ color: 'var(--text-main)' }}>
+                  ₹{Number(bill?.total_with_gst || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+
+              {/* Error */}
+              {sendError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+                  {sendError}
+                </div>
+              )}
+
+              {/* To */}
+              <div>
+                <label
+                  className="block text-xs font-medium mb-1.5"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  To (Email) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  value={sendForm.email}
+                  onChange={e => setSendForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="client@company.com"
+                  className="w-full rounded-xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                  style={{
+                    backgroundColor: 'var(--surface-bg)',
+                    borderColor:     'var(--surface-border)',
+                    color:           'var(--text-main)',
+                  }}
+                />
+              </div>
+
+              {/* CC */}
+              <div>
+                <label
+                  className="block text-xs font-medium mb-1.5"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  CC (comma-separated, optional)
+                </label>
+                <input
+                  type="text"
+                  value={sendForm.send_copy_to}
+                  onChange={e => setSendForm(f => ({ ...f, send_copy_to: e.target.value }))}
+                  placeholder="cc1@company.com, cc2@company.com"
+                  className="w-full rounded-xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                  style={{
+                    backgroundColor: 'var(--surface-bg)',
+                    borderColor:     'var(--surface-border)',
+                    color:           'var(--text-main)',
+                  }}
+                />
+              </div>
+
+              {/* Message */}
+              <div>
+                <label
+                  className="block text-xs font-medium mb-1.5"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  Message (optional)
+                </label>
+                <textarea
+                  rows={3}
+                  value={sendForm.message}
+                  onChange={e => setSendForm(f => ({ ...f, message: e.target.value }))}
+                  placeholder="Please find your bill attached…"
+                  className="w-full rounded-xl border px-3 py-2 text-sm outline-none resize-none focus:ring-2 focus:ring-blue-500"
+                  style={{
+                    backgroundColor: 'var(--surface-bg)',
+                    borderColor:     'var(--surface-border)',
+                    color:           'var(--text-main)',
+                  }}
+                />
+              </div>
+
+              <p className="text-xs rounded-lg p-2"
+                style={{ color: 'var(--text-muted)', backgroundColor: 'var(--surface-bg)' }}>
+                📎 BMS will generate the PDF using the M&D Reference template and email it to the client.
+              </p>
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        {!sendDone && (
+          <div
+            className="flex justify-end gap-3 p-5 border-t"
+            style={{ borderColor: 'var(--surface-border)' }}
+          >
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl border text-sm"
+              style={{ borderColor: 'var(--surface-border)', color: 'var(--text-main)' }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSendViaBMS}
+              disabled={sending || !sendForm.email.trim()}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
+              style={{ backgroundColor: 'var(--brand-primary)' }}
+            >
+              {sending
+                ? <><Loader2 size={15} className="animate-spin" /> Sending…</>
+                : <><Send size={15} /> Send via BMS</>
+              }
+            </button>
+          </div>
+        )}
       </div>
     </div>
-  )
+  );
 }

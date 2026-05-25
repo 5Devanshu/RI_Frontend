@@ -25,6 +25,9 @@ export default function BmsClients() {
   const [msg, setMsg]           = useState(null);
   const [search, setSearch]     = useState('');
 
+  // Get auth token to ensure we only load after auth is ready
+  const token = localStorage.getItem('raut_token');
+
   const load = async () => {
     setLoading(true);
     try {
@@ -39,7 +42,11 @@ export default function BmsClients() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (token) {
+      load();
+    }
+  }, [token]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 

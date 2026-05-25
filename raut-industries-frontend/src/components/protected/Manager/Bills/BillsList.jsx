@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Plus, Search, X, Filter,
-  CheckCircle, XCircle, Loader2,
+  Plus, Search, X, Send,
+  CheckCircle, XCircle,
 } from 'lucide-react'
 import BillsRepo from '../../../../services/repository/Manager/BillsRepo'
 import {
@@ -11,360 +11,193 @@ import {
 } from '../../../protected/Admin/Masters/_components/MasterPageWrapper'
 import {
   formatCurrency, formatDate, formatNumber,
-  billStatusBadge, extractError,
-  hasRole, ROLES,
+  extractError, hasRole, ROLES,
 } from '../../../../utils/helpers'
 import { useSelector } from 'react-redux'
 import { selectUser } from '../../../../app/DashboardSlice'
 import billColumns from '../../../data/processColumnsConfig'
 import SendBillModal from './_components/SendBillModal'
 
-const MONTHS = [
-  '', 'January','February','March','April','May','June',
-  'July','August','September','October','November','December',
-]
-
-const STATUS_OPTIONS = ['', 'draft', 'confirmed', 'cancelled']
-
 export default function BillsList() {
+  const [bills, setBills] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedBill, setSelectedBill] = useState(null)
+  const [showSendModal, setShowSendModal] = useState(false)
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
+  const [confirmAction, setConfirmAction] = useState({ show: false, title: '', onConfirm: null })
+
+  const user = useSelector(selectUser)
   const navigate = useNavigate()
-  const user     = useSelector(selectUser)
-  const isAdmin  = hasRole(user, ROLES.SUPER_ADMIN, ROLES.ADMIN)
 
-  const now = new Date()
-
-  const [bills,    setBills]    = useState([])
-  const [loading,  setLoading]  = useState(true)
-  const [error,    setError]    = useState('')
-  const [toast,    setToast]    = useState({ type: '', message: '' })
-  const [confirm,  setConfirm]  = useState(null)
-  const [acting,   setActing]   = useState(false)
-  const [sendBillModal, setSendBillModal] = useState({ isOpen: false, billId: null, billNumber: null })
-
-  // Filters
-  const [search,   setSearch]   = useState('')
-  const [status,   setStatus]   = useState('')
-  const [month,    setMonth]    = useState(now.getMonth() + 1)
-  const [year,     setYear]     = useState(now.getFullYear())
-
-  const load = useCallback(async () => {
+  // ── Fetch bills ──────────────────────────────────────────────────────────
+  const fetchBills = useCallback(async () => {
+    setLoading(true)
+    setError('')
     try {
-      setLoading(true)
-      const res = await BillsRepo.getAll({
-        search: search || undefined,
-        status: status || undefined,
-        month:  month  || undefined,
-        year:   year   || undefined,
-      })
-      setBills(res.data || [])
-    } catch (err) {
-      setError(extractError(err))
+      const res = await BillsRepo.getAll()
+      const data = res.data?.data || res.data || []
+      setBills(Array.isArray(data) ? data : [])
+    } catch (e) {
+      setError(extractError(e) || 'Failed to load bills')
+      setBills([])
     } finally {
       setLoading(false)
     }
-  }, [search, status, month, year])
+  }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    fetchBills()
+  }, [fetchBills])
 
-  // ── Confirm / Cancel ────────────────────────────────────────
-  const handleAction = async () => {
-    if (!confirm) return
-    setActing(true)
-    try {
-      if (confirm.action === 'confirm') {
-        await BillsRepo.confirm(confirm.id)
-        setToast({ type: 'success', message: `Bill #${confirm.bill_no} confirmed` })
-      } else {
-        await BillsRepo.cancel(confirm.id)
-        setToast({ type: 'success', message: `Bill #${confirm.bill_no} cancelled` })
+  const filteredBills = bills.filter(bill =>
+    (bill.bill_no?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (bill.client?.name?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+  )
+
+  const handleSendBill = (bill) => {
+    setSelectedBill(bill)
+    setShowSendModal(true)
+  }
+
+  const handleCancelBill = (bill) => {
+    setConfirmAction({
+      show: true,
+      title: `Cancel Bill #${bill.bill_no}?`,
+      onConfirm: async () => {
+        try {
+          await BillsRepo.delete(bill.id)
+          setToast({ show: true, message: 'Bill cancelled successfully', type: 'success' })
+          fetchBills()
+        } catch (e) {
+          setToast({ show: true, message: extractError(e) || 'Failed to cancel bill', type: 'error' })
+        }
+        setConfirmAction({ show: false, title: '', onConfirm: null })
       }
-      setConfirm(null)
-      load()
-    } catch (err) {
-      setToast({ type: 'error', message: extractError(err) })
-      setConfirm(null)
-    } finally {
-      setActing(false)
-    }
+    })
   }
 
-  // ── Totals row ──────────────────────────────────────────────
-  const confirmed = bills.filter((b) => b.status === 'confirmed')
-  const totals = {
-    subtotal:     confirmed.reduce((s, b) => s + parseFloat(b.subtotal     || 0), 0),
-    gst:          confirmed.reduce((s, b) => s + parseFloat(b.gst_total    || 0), 0),
-    total:        confirmed.reduce((s, b) => s + parseFloat(b.total_with_gst||0), 0),
-    pieces:       confirmed.reduce((s, b) => s + parseFloat(b.total_pieces || 0), 0),
+  const handleSentSuccess = () => {
+    setToast({ show: true, message: 'Bill sent successfully', type: 'success' })
+    fetchBills()
   }
-
-  if (error) return <ErrorState message={error} />
 
   return (
-    <>
     <ListPageWrapper
       title="Bills"
-      subtitle={`${bills.length} bills · ${confirmed.length} confirmed`}
-      action={
-        <button
-          onClick={() => navigate('/bills/new')}
-          className="btn-primary text-xs"
-        >
-          <Plus size={14} /> New Bill
-        </button>
-      }
+      actionButton={{
+        label: 'New Bill',
+        icon: Plus,
+        onClick: () => navigate('/manager/bills/create'),
+        permission: ROLES.MANAGER,
+      }}
+      searchValue={searchTerm}
+      onSearchChange={setSearchTerm}
+      searchPlaceholder="Search by bill no, client…"
     >
-      {toast.message && (
-        <Toast
-          type={toast.type}
-          message={toast.message}
-          onClose={() => setToast({ type: '', message: '' })}
+      {loading && <LoadingState />}
+
+      {error && <ErrorState message={error} onRetry={fetchBills} />}
+
+      {!loading && !error && filteredBills.length === 0 && (
+        <EmptyState
+          message={bills.length === 0 ? 'No bills yet' : 'No matching bills'}
+          actionLabel={bills.length === 0 ? 'Create Bill' : undefined}
+          onAction={bills.length === 0 ? () => navigate('/manager/bills/create') : undefined}
         />
       )}
 
-      {confirm && (
-        <ConfirmModal
-          message={
-            confirm.action === 'confirm'
-              ? `Confirm Bill #${confirm.bill_no}? This cannot be edited afterwards.`
-              : `Cancel Bill #${confirm.bill_no}? This action cannot be undone.`
-          }
-          onConfirm={handleAction}
-          onCancel={() => setConfirm(null)}
-          loading={acting}
-        />
-      )}
-
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3">
-        {/* Search */}
-        <div className="relative">
-          <Search
-            size={14}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600"
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search client..."
-            className="input-field pl-8 pr-8 w-44"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2
-                         text-gray-600 hover:text-black"
-            >
-              <X size={13} />
-            </button>
-          )}
-        </div>
-
-        {/* Status */}
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          className="select-field w-36"
-        >
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>
-              {s ? s.charAt(0).toUpperCase() + s.slice(1) : 'All Status'}
-            </option>
-          ))}
-        </select>
-
-        {/* Month */}
-        <select
-          value={month}
-          onChange={(e) => setMonth(Number(e.target.value))}
-          className="select-field w-36"
-        >
-          <option value="">All Months</option>
-          {MONTHS.slice(1).map((m, i) => (
-            <option key={m} value={i + 1}>{m}</option>
-          ))}
-        </select>
-
-        {/* Year */}
-        <select
-          value={year}
-          onChange={(e) => setYear(Number(e.target.value))}
-          className="select-field w-28"
-        >
-          {[2024, 2025, 2026].map((y) => (
-            <option key={y} value={y}>{y}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Totals summary bar */}
-      {confirmed.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: 'Subtotal',    value: formatCurrency(totals.subtotal), color: 'text-black' },
-            { label: 'GST',         value: formatCurrency(totals.gst),      color: 'text-gray-600' },
-            { label: 'Total',       value: formatCurrency(totals.total),    color: 'text-blue-400' },
-            { label: 'Pieces',      value: formatNumber(totals.pieces, 0),  color: 'text-black' },
-          ].map((s) => (
-            <div key={s.label}
-              className="card px-4 py-3 flex items-center
-                         justify-between">
-              <p className="text-xs text-gray-600">{s.label}</p>
-              <p className={`text-sm font-bold ${s.color}`}>{s.value}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Table */}
-      {loading
-        ? <LoadingState />
-        : (
-          <div className="card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200 bg-gray-100/40">
-                    {[...billColumns.map((c) => c.label), 'Actions'].map((h) => (
-                      <th key={h}
-                        className="px-4 py-3 text-left text-xs text-gray-600
-                                   font-semibold uppercase tracking-wide
-                                   whitespace-nowrap">
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800/50">
-                  {bills.length === 0
-                    ? (
-                      <tr>
-                        <td colSpan={billColumns.length + 1}>
-                          <EmptyState message="No bills found for this period" />
-                        </td>
-                      </tr>
-                    )
-                    : bills.map((bill) => (
-                      <tr
-                        key={bill.id}
-                        className="table-row-hover cursor-pointer"
-                        onClick={() => navigate(`/bills/${bill.id}/preview`)}
+      {!loading && !error && filteredBills.length > 0 && (
+        <div className="overflow-x-auto rounded-lg border" style={{ borderColor: 'var(--surface-border)' }}>
+          <table className="w-full text-sm">
+            <thead style={{ backgroundColor: 'var(--surface-bg)' }}>
+              <tr className="border-b" style={{ borderColor: 'var(--surface-border)' }}>
+                {billColumns.map(col => (
+                  <th key={col.id} className="px-4 py-3 text-left font-semibold">
+                    <span style={{ color: 'var(--text-muted)' }}>{col.label}</span>
+                  </th>
+                ))}
+                <th className="px-4 py-3 text-left font-semibold">
+                  <span style={{ color: 'var(--text-muted)' }}>Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredBills.map(bill => (
+                <tr key={bill.id} className="border-b hover:opacity-75 transition" style={{ borderColor: 'var(--surface-border)' }}>
+                  <td className="px-4 py-3" style={{ color: 'var(--text-main)' }}>#{bill.bill_no}</td>
+                  <td className="px-4 py-3" style={{ color: 'var(--text-main)' }}>{bill.client?.name || '—'}</td>
+                  <td className="px-4 py-3 text-right font-semibold" style={{ color: 'var(--text-main)' }}>
+                    {formatCurrency(bill.total_with_gst || 0)}
+                  </td>
+                  <td className="px-4 py-3" style={{ color: 'var(--text-muted)' }}>
+                    {formatDate(bill.bill_date)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-block text-xs px-2 py-1 rounded-full font-semibold
+                      ${bill.status === 'confirmed' ? 'bg-emerald-100 text-emerald-700'
+                        : bill.status === 'draft' ? 'bg-yellow-100 text-yellow-700'
+                        : 'bg-red-100 text-red-700'}`}>
+                      {bill.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 space-x-2 flex items-center gap-2">
+                    <button
+                      onClick={() => navigate(`/manager/bills/${bill.id}`)}
+                      className="text-xs px-2 py-1 rounded hover:opacity-70 transition"
+                      style={{ color: 'var(--brand-primary)', backgroundColor: 'var(--surface-bg)' }}
+                    >
+                      View
+                    </button>
+                    {bill.status === 'confirmed' && (
+                      <button
+                        onClick={() => handleSendBill(bill)}
+                        className="text-xs px-2 py-1 rounded hover:opacity-70 transition flex items-center gap-1"
+                        style={{ color: '#fff', backgroundColor: 'var(--brand-primary)' }}
                       >
-                        {billColumns.map((col) => (
-                          <td key={col.key} className="px-4 py-3">
-                            {col.badge
-                              ? (
-                                <span className={col.badge(bill)}>
-                                  {col.render(bill)}
-                                </span>
-                              )
-                              : (
-                                <div>
-                                  <span className={col.className}>
-                                    {col.render(bill)}
-                                  </span>
-                                  {col.sub?.(bill) && (
-                                    <p className="text-[10px] text-gray-600
-                                                  font-mono mt-0.5">
-                                      {col.sub(bill)}
-                                    </p>
-                                  )}
-                                </div>
-                              )
-                            }
-                          </td>
-                        ))}
+                        <Send size={12} /> Send
+                      </button>
+                    )}
+                    {bill.status === 'draft' && (
+                      <button
+                        onClick={() => handleCancelBill(bill)}
+                        className="text-xs px-2 py-1 rounded hover:opacity-70 transition text-red-600"
+                      >
+                        <XCircle size={14} />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-                        {/* Actions */}
-                        <td
-                          className="px-4 py-3"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <div className="flex items-center gap-1.5">
+      {showSendModal && selectedBill && (
+        <SendBillModal
+          bill={selectedBill}
+          onClose={() => setShowSendModal(false)}
+          onSent={handleSentSuccess}
+        />
+      )}
 
-                            {/* Edit — draft only */}
-                            {bill.status === 'draft' && (
-                              <button
-                                onClick={() => navigate(`/bills/${bill.id}/edit`)}
-                                className="text-xs text-gray-600 hover:text-blue-400
-                                           px-2 py-1 rounded hover:bg-blue-500/10
-                                           transition-colors font-medium"
-                              >
-                                Edit
-                              </button>
-                            )}
+      {toast.show && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast({ show: false, message: '', type: 'success' })}
+        />
+      )}
 
-                            {/* Confirm — draft only */}
-                            {bill.status === 'draft' && (
-                              <button
-                                onClick={() => setConfirm({
-                                  id:      bill.id,
-                                  bill_no: bill.bill_no,
-                                  action:  'confirm',
-                                })}
-                                className="text-xs text-gray-600 hover:text-emerald-400
-                                           px-2 py-1 rounded hover:bg-emerald-500/10
-                                           transition-colors font-medium flex items-center gap-1"
-                              >
-                                <CheckCircle size={12} /> Confirm
-                              </button>
-                            )}
-
-                            {/* Cancel — admin only, not already cancelled */}
-                            {isAdmin && bill.status !== 'cancelled' && (
-                              <button
-                                onClick={() => setConfirm({
-                                  id:      bill.id,
-                                  bill_no: bill.bill_no,
-                                  action:  'cancel',
-                                })}
-                                className="text-xs text-gray-600 hover:text-red-400
-                                           px-2 py-1 rounded hover:bg-red-500/10
-                                           transition-colors font-medium flex items-center gap-1"
-                              >
-                                <XCircle size={12} /> Cancel
-                              </button>
-                            )}
-
-                            {/* Send via Email */}
-                            <button
-                              onClick={() => setSendBillModal({
-                                isOpen: true,
-                                billId: bill.id,
-                                billNumber: bill.bill_no,
-                              })}
-                              className="text-xs text-gray-600 hover:text-blue-400
-                                         px-2 py-1 rounded hover:bg-blue-500/10
-                                         transition-colors font-medium"
-                            >
-                              📧 Send
-                            </button>
-
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  }
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )
-      }
-
-      </ListPageWrapper>
-
-    <SendBillModal
-      isOpen={sendBillModal.isOpen}
-      onClose={() =>
-        setSendBillModal({
-          isOpen: false,
-          billId: null,
-          billNumber: null,
-        })
-      }
-      billId={sendBillModal.billId}
-      billNumber={sendBillModal.billNumber}
-    />
-  </>
-)
+      {confirmAction.show && (
+        <ConfirmModal
+          title={confirmAction.title}
+          onConfirm={() => confirmAction.onConfirm?.()}
+          onCancel={() => setConfirmAction({ show: false, title: '', onConfirm: null })}
+        />
+      )}
+    </ListPageWrapper>
+  )
 }

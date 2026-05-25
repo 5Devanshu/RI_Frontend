@@ -71,6 +71,8 @@ const Apis = {
   bmsTemplates:       '/bms/templates',
   bmsTaxRates:        '/bms/tax-rates',
   bmsParticulars:     '/bms/particulars',
+  // Add this to your existing Apis.js alongside the other BMS keys:
+  bmsSendBill:        '/bms/send-bill',
 }
 
 export default Apis

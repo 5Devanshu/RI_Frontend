@@ -14,11 +14,18 @@ export const bmsConnector = axios.create({
   timeout: 30000,
 });
 
-// Attach JWT bearer token from Redux store (required by Raut backend auth middleware)
+// Attach JWT bearer token from Redux store OR localStorage (required by Raut backend auth middleware)
 bmsConnector.interceptors.request.use(
   (config) => {
+    // Try Redux store first
     const state = store.getState();
-    const token = state.dashboard.token;
+    let token = state.dashboard.token;
+    
+    // If not in Redux, try localStorage (for app initialization before Redux hydration)
+    if (!token) {
+      token = localStorage.getItem('raut_token');
+    }
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

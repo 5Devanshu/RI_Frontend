@@ -97,6 +97,9 @@ export default function BmsInvoices() {
   const [payModes, setPayModes]       = useState([]);
   const [masterLoading, setMasterLoading] = useState(true);
 
+  // Get auth token to ensure we only load after auth is ready
+  const token = localStorage.getItem('raut_token');
+
   const [invoices, setInvoices]         = useState([]);
   const [listLoading, setListLoading]   = useState(false);
   const [searchTerm, setSearchTerm]     = useState('');
@@ -179,7 +182,13 @@ export default function BmsInvoices() {
     finally { setListLoading(false); }
   }, [statusFilter]);
 
-  useEffect(() => { loadMasters(); }, []);
+  // Only load master data once authentication is ready
+  useEffect(() => {
+    if (token) {
+      loadMasters();
+    }
+  }, [token]);
+  
   useEffect(() => { loadInvoices(); }, [statusFilter]);
 
   // ── invoice form helpers ─────────────────────────────────

@@ -1,27 +1,38 @@
 import bmsConnector from '../../bmsConnector';
+import { withDeduplication } from '../../bmsRequestManager';
 
 // ─── BMS Clients ─────────────────────────────────────────────────
 export const listBmsClientsApi = (params = {}) =>
-  bmsConnector.get('/clients', { params });
+  withDeduplication('clients', params, () =>
+    bmsConnector.get('/clients', { params })
+  );
 
 export const createBmsClientApi = (data) =>
   bmsConnector.post('/clients', data);
 
 // ─── BMS Templates ────────────────────────────────────────────────
 export const listBmsTemplatesApi = (params = {}) =>
-  bmsConnector.get('/templates', { params });
+  withDeduplication('templates', params, () =>
+    bmsConnector.get('/templates', { params })
+  );
 
 // ─── BMS Tax Rates ────────────────────────────────────────────────
 export const listBmsGstRatesApi = (params = {}) =>
-  bmsConnector.get('/tax-rates', { params });
+  withDeduplication('tax-rates', params, () =>
+    bmsConnector.get('/tax-rates', { params })
+  );
 
 // ─── BMS Particulars ─────────────────────────────────────────────
 export const listBmsParticularsApi = (params = {}) =>
-  bmsConnector.get('/particulars', { params });
+  withDeduplication('particulars', params, () =>
+    bmsConnector.get('/particulars', { params })
+  );
 
 // ─── BMS Invoices ────────────────────────────────────────────────
 export const listBmsInvoicesApi = (params = {}) =>
-  bmsConnector.get('/invoices', { params });
+  withDeduplication('invoices', params, () =>
+    bmsConnector.get('/invoices', { params })
+  );
 
 export const createBmsInvoiceApi = (data) =>
   bmsConnector.post('/invoices', data);
@@ -40,8 +51,12 @@ export const createBmsPaymentApi = (data) =>
   bmsConnector.post('/payments', data);
 
 export const listBmsPaymentModesApi = (params = {}) =>
-  bmsConnector.get('/payment-modes', { params });
+  withDeduplication('payment-modes', params, () =>
+    bmsConnector.get('/payment-modes', { params })
+  );
 
 // ─── BMS Payment Modes ───────────────────────────────────────────
 export const listBmsPaymentModesApiAlt = (params = {}) =>
-  bmsConnector.get('/payment-modes', { params });
+  withDeduplication('payment-modes', params, () =>
+    bmsConnector.get('/payment-modes', { params })
+  );

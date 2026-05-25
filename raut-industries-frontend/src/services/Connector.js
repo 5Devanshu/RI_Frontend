@@ -17,8 +17,14 @@ const Connector = axios.create({
 
 Connector.interceptors.request.use(
   (config) => {
+    // Try Redux store first
     const state = store.getState()
-    const token = state.dashboard.token
+    let token = state.dashboard.token
+    
+    // If not in Redux, try localStorage (for app initialization before Redux hydration)
+    if (!token) {
+      token = localStorage.getItem('raut_token')
+    }
 
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`
